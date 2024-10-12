@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Check if tcpdump is installed
+if ! command -v tcpdump &> /dev/null; then
+    echo "tcpdump could not be found. Please install it to proceed."
+    exit 1
+fi
+
+# Capture and log packets
+LOGFILE="$HOME/packet_log.txt"
+sudo tcpdump -nn -i any -s 0 -A -w - | \
+awk '{
+    if ($0 ~ /IP/) {
+        ip_src = $3;
+        ip_dst = $5;
+        gsub(":", "", ip_dst);
+        print "Source: " ip_src ", Destination: " ip_dst;
+    }
+    if ($0 ~ /proto/) {
+        print "Protocol: " $3;
+    }
+    if ($0 ~ /data/) {
+        print "Payload: " $0;
+    }
+}' > $LOGFILE &
+
+# Get the PID of tcpdump process
+PID=$!
+
+echo "Capturing packets... Press [CTRL+C] to stop."
+
+# Function to stop packet capture
+stop_capture() {
+    sudo kill $PID
+    echo "Packet capture stopped. Logs saved to $LOGFILE"
+    exit 0
+}
+
+# Capture SIGINT (CTRL+C) and stop packet capture
+trap stop_capture SIGINT
+
+# Wait for the process to end
+wait $PID
